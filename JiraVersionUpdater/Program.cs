@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Autofac;
 using Fclp;
 using NLogInjector;
@@ -24,7 +20,7 @@ namespace JiraVersionUpdater
 				.As('u', "username")
 				.Required()
 				.WithDescription("Username to access TC");
-			fluentCommandLineParser.Setup(f => f.FixVersion)
+			fluentCommandLineParser.Setup(f => f.FixVersionStr)
 				.As('f', "fix")
 				.Required()
 				.WithDescription("The main version we want to apply the fix for, e.g. 5.6.0 (not 5.6.0.XX)");
@@ -34,6 +30,9 @@ namespace JiraVersionUpdater
 			fluentCommandLineParser.Setup(f => f.ProjectKey)
 				.As('k', "project")
 				.WithDescription("The project key to update the version for");
+			fluentCommandLineParser.Setup(f => f.CustomFieldName)
+				.As('c', "fieldName")
+				.WithDescription("The name of the custom field to update e.g. customfield_XXX");
 
 			ICommandLineParserResult commandLineParserResult = fluentCommandLineParser.Parse(args);
 
@@ -55,12 +54,7 @@ namespace JiraVersionUpdater
 			}
 			else
 			{
-				Console.WriteLine(
-					$"Usage: jiraVersionUpdater -[t|url] http://companyname.atlassian.net -[u|username] admin -[p|password] XXX");
-				foreach (var commandLineParserError in commandLineParserResult.Errors)
-				{
-					Console.WriteLine($"{commandLineParserError.Option.Description} is a required parameter");
-				}
+				fluentCommandLineParser.SetupHelp("?", "help").Callback(text => Console.WriteLine(text));
 				Environment.Exit(-1);
 			}
 		}

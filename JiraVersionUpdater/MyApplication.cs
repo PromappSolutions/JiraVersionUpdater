@@ -1,11 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Dynamic;
 using System.Linq;
+using System.Net;
 using AnotherJiraRestClient;
 using AnotherJiraRestClient.JiraModel;
 using JetBrains.Annotations;
+using JiraVersionUpdater.Promapp;
 using NLog;
 using NLogInjector;
+using RestSharp;
+using Version = System.Version;
 
 namespace JiraVersionUpdater
 {
@@ -45,7 +50,7 @@ namespace JiraVersionUpdater
 		{
 			_logger.Info("Getting all versions which have the fix version of <{0}>", _jiraOptions.FixVersion);
 			string allClosedTicketsWithoutAnAvailableVersion =
-				$"project={projectMeta.key} and \"Available From\" is EMPTY and statusCategory = Done and fixVersion = {_jiraOptions.FixVersion}";
+				$"project={projectMeta.key} and statusCategory = Done and fixVersion = {_jiraOptions.FixVersion}";
 
 			var client = new JiraClient(Account);
 			Issues issues = client.GetIssuesByJql(allClosedTicketsWithoutAnAvailableVersion, 0, 500);
@@ -57,11 +62,61 @@ namespace JiraVersionUpdater
 			}
 			AnotherJiraRestClient.JiraModel.Version addedVersion = AddOrGetExistingVersion(projectMeta);
 
-			_logger.Info("Found <{0}> issues for this release, will be updated to 'Available Version' <{1}>", issues.issues.Count, addedVersion.name);
+			_logger.Info(
+				$"Found <{issues.issues.Count}> issues for this release, will be updated to 'Available Version' <{addedVersion.name}>");
+
+			var expando = new ExpandoObject();
+			var asDict = (IDictionary<string, object>)expando;
+			asDict.Add(_jiraOptions.CustomFieldName, addedVersion);
+
+			var updateIssue = new
+			{
+				fields = expando
+			};
+
+			_logger.Info($"Found <{issues.issues.Count}> issues to process");
+			
 			foreach (var issue in issues.issues)
 			{
-				_logger.Info("Update issue <{0}>", issue.key);
-				client.UpdateIssueFields(issue.key, addedVersion,);
+				_logger.Info($"Processing <{issue.key}>");
+
+				var request = new RestRequest
+				{
+					Resource = $"{ResourceUrls.IssueByKey(issue.key)}?fields={_jiraOptions.CustomFieldName}",
+					Method = Method.GET
+				};
+
+				// TODO: custom logic to handle some version information specific to Promapp's needs
+				var promappIssue = client.Execute<PromappReleaseIssue>(request, HttpStatusCode.OK);
+
+				if (promappIssue.fields == null)
+					throw new InvalidOperationException("Fields is empty, has the Jira API changed?");
+
+				bool updateVersion = false;
+				if (promappIssue.fields.customfield_11520 == null)
+					updateVersion = true;
+				else
+				{
+					Version customFieldAsVersion;
+					if (!Version.TryParse(promappIssue.fields.customfield_11520.name, out customFieldAsVersion))
+					{
+						throw new InvalidOperationException($"Couldn't parse custom field value for ticket <{issue.key}> of <{promappIssue.fields.customfield_11520.name}> to a version");
+					}
+
+					// e.g. we have moved from dev->staging
+					if (_jiraOptions.FixVersion >= Version.Parse("1.0.0.0") && customFieldAsVersion < Version.Parse("1.0.0.0"))
+						updateVersion = true;
+					else
+					{
+						_logger.Info($"Update issue <{issue.key}> with version <{customFieldAsVersion}>");
+					}
+				}
+
+				if (updateVersion)
+				{
+					_logger.Info($"Update issue <{issue.key}> with version <{_jiraOptions.FixVersion}>");
+					client.UpdateIssueFields(issue.key, updateIssue);
+				}
 			}
 			return true;
 		}
@@ -94,23 +149,12 @@ namespace JiraVersionUpdater
 			var addedVersion = client.CreateVersion(new NewVersion
 			{
 				description = "Automatically added release version via TC on " + _dateTimeProvider.Now.ToShortDateString() + " " + _dateTimeProvider.Now.ToShortTimeString(),
-				name = _jiraOptions.AvailableFromVersion.ToString(),
+				name = _jiraOptions.AvailableFromVersion,
 				userStartDate = _dateTimeProvider.Now.ToString("dd/MMM/yyyy"),
 				userReleaseDate = _dateTimeProvider.Now.ToString("dd/MMM/yyyy"),
 				project = projectMeta.key,
 				released = true,
 			});
-
-
-			// TODO: Figure out hot to automatically mark version as released
-			// due to a Jira REST issue, we need to mark it as released
-			//var updated = client.UpdateVersion(new UpdateVersion
-			//{
-			//    //name = addedVersion.name,
-			//    released = true,
-			//    id = addedVersion.id,
-			//    //project = projectMeta.key
-			//});
 
 			return addedVersion;
 		}

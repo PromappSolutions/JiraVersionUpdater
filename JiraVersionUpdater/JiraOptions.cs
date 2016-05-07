@@ -10,10 +10,14 @@ namespace JiraVersionUpdater
 
 		public string UserName { get; set; }
 
-		public Version FixVersion { get; set; }
+		public string FixVersionStr { get; set; }
 
-		public Version AvailableFromVersion { get; set; }
+		public Version FixVersion => Version.Parse(FixVersionStr);
+
+		public string AvailableFromVersion { get; set; }
 
 		public string ProjectKey { get; set; }
+
+		public string CustomFieldName { get; set; }
 	}
 }
