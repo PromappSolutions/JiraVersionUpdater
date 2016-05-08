@@ -114,7 +114,7 @@ namespace JiraVersionUpdater
 
 				if (updateVersion)
 				{
-					_logger.Info($"Update issue <{issue.key}> with version <{_jiraOptions.FixVersion}>");
+					_logger.Info($"Update issue <{issue.key}> with version <{_jiraOptions.AvailableFromVersion}>");
 					client.UpdateIssueFields(issue.key, updateIssue);
 				}
 			}
