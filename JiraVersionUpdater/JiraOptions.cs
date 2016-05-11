@@ -14,9 +14,11 @@ namespace JiraVersionUpdater
 
 		public Version FixVersion => Version.Parse(FixVersionStr);
 
-		public string AvailableFromVersion { get; set; }
+		public string AvailableFromVersionStr { get; set; }
 
-		public string ProjectKey { get; set; }
+        public Version AvailableFromVersion => Version.Parse(AvailableFromVersionStr);
+
+        public string ProjectKey { get; set; }
 
 		public string CustomFieldName { get; set; }
 	}

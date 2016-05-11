@@ -104,11 +104,11 @@ namespace JiraVersionUpdater
 					}
 
 					// e.g. we have moved from dev->staging
-					if (_jiraOptions.FixVersion >= Version.Parse("1.0.0.0") && customFieldAsVersion < Version.Parse("1.0.0.0"))
+					if (_jiraOptions.FixVersion >= Version.Parse("1.0.0.0") && customFieldAsVersion < Version.Parse("1.0.0.0") && _jiraOptions.AvailableFromVersion >= Version.Parse("1.0.0"))
 						updateVersion = true;
 					else
 					{
-						_logger.Info($"Update issue <{issue.key}> with version <{customFieldAsVersion}>");
+						_logger.Info($"Issue <{issue.key}> won't get updated as it is already stamped with version <{customFieldAsVersion}>");
 					}
 				}
 
@@ -149,7 +149,7 @@ namespace JiraVersionUpdater
 			var addedVersion = client.CreateVersion(new NewVersion
 			{
 				description = "Automatically added release version via TC on " + _dateTimeProvider.Now.ToShortDateString() + " " + _dateTimeProvider.Now.ToShortTimeString(),
-				name = _jiraOptions.AvailableFromVersion,
+				name = _jiraOptions.AvailableFromVersion.ToString(),
 				userStartDate = _dateTimeProvider.Now.ToString("dd/MMM/yyyy"),
 				userReleaseDate = _dateTimeProvider.Now.ToString("dd/MMM/yyyy"),
 				project = projectMeta.key,

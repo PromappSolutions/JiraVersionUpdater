@@ -24,7 +24,7 @@ namespace JiraVersionUpdater
 				.As('f', "fix")
 				.Required()
 				.WithDescription("The main version we want to apply the fix for, e.g. 5.6.0 (not 5.6.0.XX)");
-			fluentCommandLineParser.Setup(f => f.AvailableFromVersion)
+			fluentCommandLineParser.Setup(f => f.AvailableFromVersionStr)
 				.As('a', "available")
 				.WithDescription("The version the tickets will be available from, e.g. 5.6.0.XX");
 			fluentCommandLineParser.Setup(f => f.ProjectKey)
