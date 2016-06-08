@@ -50,7 +50,7 @@ namespace JiraVersionUpdater
 		{
 			_logger.Info("Getting all versions which have the fix version of <{0}>", _jiraOptions.FixVersion);
 			string allClosedTicketsWithoutAnAvailableVersion =
-				$"project={projectMeta.key} and statusCategory = Done and fixVersion = {_jiraOptions.FixVersion}";
+				$"project={projectMeta.key} and status in (Resolved, \"Under Test\", Closed, Done) and fixVersion = {_jiraOptions.FixVersion} order by key";
 
 			var client = new JiraClient(Account);
 			Issues issues = client.GetIssuesByJql(allClosedTicketsWithoutAnAvailableVersion, 0, 500);
