@@ -10,6 +10,7 @@ using JiraVersionUpdater.Promapp;
 using NLog;
 using NLogInjector;
 using RestSharp;
+using NullLogger = NLogInjector.NullLogger;
 using Version = System.Version;
 
 namespace JiraVersionUpdater
@@ -34,8 +35,7 @@ namespace JiraVersionUpdater
 			// https://confluence.jetbrains.com/display/TCD65/Build+Script+Interaction+with+TeamCity#BuildScriptInteractionwithTeamCity-ReportingMessagesForBuildLog
 			_logger.Info("##teamcity[progressStart 'Updating Jira tickets']");
 
-			ProjectMeta projectMeta;
-			if (!VerifyProjectKey(out projectMeta))
+		    if (!VerifyProjectKey(out var projectMeta))
 			{
 				_logger.Error($"Project <{_jiraOptions.ProjectKey}> doesn't exist");
 				return false;
@@ -93,22 +93,26 @@ namespace JiraVersionUpdater
 					throw new InvalidOperationException("Fields is empty, has the Jira API changed?");
 
 				bool updateVersion = false;
-				if (promappIssue.fields.customfield_11520 == null)
+			    AnotherJiraRestClient.JiraModel.Version customFieldVersion = promappIssue.fields.customfield_11520;
+			    if (customFieldVersion == null)
 					updateVersion = true;
 				else
 				{
-					Version customFieldAsVersion;
-					if (!Version.TryParse(promappIssue.fields.customfield_11520.name, out customFieldAsVersion))
-					{
-						throw new InvalidOperationException($"Couldn't parse custom field value for ticket <{issue.key}> of <{promappIssue.fields.customfield_11520.name}> to a version");
+                    // because versions can have an "_" now
+				    string actualVersion = customFieldVersion.name;
+				    if (!actualVersion.TrySeparateVersionAndProject(out Version stampedVersion, out string projectName))
+                    {
+						throw new InvalidOperationException($"Couldn't parse custom field value for ticket <{issue.key}> of <{customFieldVersion.name}> to a version");
 					}
 
 					// e.g. we have moved from dev->staging
-					if (_jiraOptions.FixVersion >= Version.Parse("1.0.0.0") && customFieldAsVersion < Version.Parse("1.0.0.0") && _jiraOptions.AvailableFromVersion >= Version.Parse("1.0.0"))
+					if (_jiraOptions.FixVersionObj >= Version.Parse("1.0.0.0") &&
+					    stampedVersion < Version.Parse("1.0.0.0") && 
+                        _jiraOptions.AvailableFromVersionObj >= Version.Parse("1.0.0"))
 						updateVersion = true;
 					else
 					{
-						_logger.Info($"Issue <{issue.key}> won't get updated as it is already stamped with version <{customFieldAsVersion}>");
+						_logger.Info($"Issue <{issue.key}> won't get updated as it is already stamped with version <{actualVersion}>");
 					}
 				}
 
@@ -166,5 +170,32 @@ namespace JiraVersionUpdater
 			User = _jiraOptions.UserName,
 			Password = _jiraOptions.Password
 		};
-	}
+    }
+
+    public static class Extensions
+    {
+        public static bool TrySeparateVersionAndProject(this string value, out Version version, out string project)
+        {
+            try
+            {
+                string actualVersion = value;
+                project = string.Empty;
+                var indexOfVersionSeparator = actualVersion.IndexOf("_", StringComparison.Ordinal);
+                if (indexOfVersionSeparator > 0)
+                {
+                    project = actualVersion.Substring(indexOfVersionSeparator);
+                    actualVersion = actualVersion.Substring(0, indexOfVersionSeparator);
+                }
+
+                version = Version.Parse(actualVersion);
+                return true;
+            }
+            catch
+            {
+                version = null;
+                project = null;
+                return false;
+            }
+        }
+    }
 }

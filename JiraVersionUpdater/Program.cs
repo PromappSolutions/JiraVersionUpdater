@@ -20,11 +20,11 @@ namespace JiraVersionUpdater
 				.As('u', "username")
 				.Required()
 				.WithDescription("Username to access TC");
-			fluentCommandLineParser.Setup(f => f.FixVersionStr)
+			fluentCommandLineParser.Setup(f => f.FixVersion)
 				.As('f', "fix")
 				.Required()
 				.WithDescription("The main version we want to apply the fix for, e.g. 5.6.0 (not 5.6.0.XX)");
-			fluentCommandLineParser.Setup(f => f.AvailableFromVersionStr)
+			fluentCommandLineParser.Setup(f => f.AvailableFromVersion)
 				.As('a', "available")
 				.WithDescription("The version the tickets will be available from, e.g. 5.6.0.XX");
 			fluentCommandLineParser.Setup(f => f.ProjectKey)
