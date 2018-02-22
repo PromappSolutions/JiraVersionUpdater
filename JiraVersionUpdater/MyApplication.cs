@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Dynamic;
 using System.Linq;
 using System.Net;
@@ -53,17 +54,38 @@ namespace JiraVersionUpdater
 				$"project={projectMeta.key} and status in (Resolved, \"Under Test\", Closed, Done) and fixVersion = {_jiraOptions.FixVersion} order by key";
 
 			var client = new JiraClient(Account);
-			Issues issues = client.GetIssuesByJql(allClosedTicketsWithoutAnAvailableVersion, 0, 500);
 
-			if (!issues.issues.Any())
-			{
-				_logger.Info("No tickets found to update");
-				return true;
-			}
-			AnotherJiraRestClient.JiraModel.Version addedVersion = AddOrGetExistingVersion(projectMeta);
+		    bool moreExists = false;
+		    const int maxResults = 100;
+		    int startAt = 0;
+		    var allIssues = new List<Issue>();
+		    do
+		    {
+		        Issues issues = client.GetIssuesByJql(allClosedTicketsWithoutAnAvailableVersion, startAt, maxResults);
+		        allIssues.AddRange(issues.issues.Select(i => i));
+
+                if (issues.issues.Count + startAt < issues.total)
+		        {
+		            moreExists = true;
+		            startAt += issues.issues.Count;
+		        }
+		        else
+		        {
+		            moreExists = false;
+		        }
+
+		    } while (moreExists);
+
+		    if (!allIssues.Any())
+		    {
+		        _logger.Info("No tickets found to update");
+		        return true;
+		    }
+
+            AnotherJiraRestClient.JiraModel.Version addedVersion = AddOrGetExistingVersion(projectMeta);
 
 			_logger.Info(
-				$"Found <{issues.issues.Count}> issues for this release, will be updated to 'Available Version' <{addedVersion.name}>");
+				$"Found <{allIssues.Count}> issues for this release, will be updated to 'Available Version' <{addedVersion.name}>");
 
 			var expando = new ExpandoObject();
 			var asDict = (IDictionary<string, object>)expando;
@@ -73,12 +95,10 @@ namespace JiraVersionUpdater
 			{
 				fields = expando
 			};
-
-			_logger.Info($"Found <{issues.issues.Count}> issues to process");
 			
-			foreach (var issue in issues.issues)
+			foreach (var issue in allIssues)
 			{
-				_logger.Info($"Processing <{issue.key}>");
+			    _logger.Info($"Processing <{issue.key}>");
 
 				var request = new RestRequest
 				{
